@@ -32,7 +32,6 @@ export default function Home() {
       setFavorites(JSON.parse(savedFavorites));
     }
     const savedMacros = localStorage.getItem('kalorieapp_macros');
-    // Check if it's a new day to reset macros
     const lastDate = localStorage.getItem('kalorieapp_date');
     const today = new Date().toDateString();
     
@@ -85,10 +84,12 @@ export default function Home() {
     setError(null);
     setShowFavorites(false);
     try {
-      const response = await fetch(`https://de.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(term)}&search_simple=1&action=process&json=1&page_size=20`);
+      // OPTIMIZED SEARCH: Limited fields and page size for faster response
+      const fields = 'code,product_name,brands,image_front_small_url,nutriments';
+      const response = await fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(term)}&search_simple=1&action=process&json=1&page_size=15&fields=${fields}`);
       const data = await response.json();
       
-      if (data.products) {
+      if (data.products && data.products.length > 0) {
         setProducts(data.products);
       } else {
         setProducts([]);
@@ -109,7 +110,7 @@ export default function Home() {
       if (code) {
         setLoading(true);
         try {
-            const response = await fetch(`https://world.openfoodfacts.org/api/v0/product/${code}.json`);
+            const response = await fetch(`https://world.openfoodfacts.org/api/v0/product/${code}.json?fields=code,product_name,brands,image_front_small_url,nutriments`);
             const data = await response.json();
             if (data.product) {
                 setProducts([data.product]);
@@ -128,11 +129,12 @@ export default function Home() {
 
   const displayedProducts = showFavorites ? favorites : products;
 
-  // Macro Charts Data
+  // Macro Charts Data - WITH DISTINCT CALORIE RING
   const macroData = [
+      { name: 'Kcal', value: dailyMacros.calories, color: '#9b59b6', max: 2500 }, // Purple for Calories
       { name: 'Protein', value: dailyMacros.protein, color: '#3498db', max: 150 },
       { name: 'Carbs', value: dailyMacros.carbs, color: '#f1c40f', max: 250 },
-      { name: 'Fat', value: dailyMacros.fat, color: '#e74c3c', max: 80 }
+      { name: 'Fett', value: dailyMacros.fat, color: '#e74c3c', max: 80 }
   ];
 
   const renderMacroChart = (data) => {
@@ -144,15 +146,15 @@ export default function Home() {
       ];
 
       return (
-          <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', width: '30%'}}>
-             <div style={{width: '100px', height: '100px', position: 'relative'}}>
-                <PieChart width={100} height={100}>
+          <div key={data.name} style={{display: 'flex', flexDirection: 'column', alignItems: 'center', width: '22%'}}>
+             <div style={{width: '70px', height: '70px', position: 'relative'}}>
+                <PieChart width={70} height={70}>
                     <Pie
                         data={chartData}
-                        cx={45}
-                        cy={45}
-                        innerRadius={30}
-                        outerRadius={40}
+                        cx={35}
+                        cy={35}
+                        innerRadius={22}
+                        outerRadius={30}
                         fill="#8884d8"
                         paddingAngle={0}
                         dataKey="value"
@@ -166,12 +168,13 @@ export default function Home() {
                 </PieChart>
                 <div style={{
                     position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', 
-                    fontSize: '12px', fontWeight: 'bold', color: '#555'
+                    fontSize: '10px', fontWeight: 'bold', color: '#555',
+                    display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%'
                 }}>
-                    {Math.round(data.value)}g
+                    {Math.round(data.value)}
                 </div>
              </div>
-             <span style={{fontSize: '12px', color: '#777', marginTop: '-10px'}}>{data.name}</span>
+             <span style={{fontSize: '11px', color: '#777', marginTop: '-5px', fontWeight: 'bold'}}>{data.name}</span>
           </div>
       );
   };
@@ -187,16 +190,18 @@ export default function Home() {
       color: '#333'
     }}>
       <header style={{ textAlign: 'center', marginBottom: '20px', paddingTop: '10px' }}>
-        <h1 style={{ color: '#2ecc71', margin: '0 0 5px 0', fontSize: '2.5rem' }}>KalorieApp 🍎</h1>
+        <h1 style={{ color: '#2ecc71', margin: '0 0 15px 0', fontSize: '2.5rem' }}>KalorieApp 🍎</h1>
         
         {/* Macro Overview */}
         <div style={{
             backgroundColor: 'white', padding: '15px', borderRadius: '16px', 
             boxShadow: '0 4px 15px rgba(0,0,0,0.05)', marginBottom: '20px'
         }}>
-            <h3 style={{margin: '0 0 10px 0', fontSize: '16px', color: '#555'}}>
-                Heute: <span style={{color: '#2c3e50', fontSize: '20px'}}>{Math.round(dailyMacros.calories)}</span> / 2000 kcal
-            </h3>
+            <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '10px', padding: '0 10px'}}>
+               <span style={{fontWeight: 'bold', color: '#555'}}>Tagesübersicht</span>
+               <span style={{fontSize: '12px', color: '#aaa'}}>{new Date().toLocaleDateString()}</span>
+            </div>
+            
             <div style={{display: 'flex', justifyContent: 'space-around'}}>
                 {macroData.map(m => renderMacroChart(m))}
             </div>
@@ -219,7 +224,7 @@ export default function Home() {
       </header>
       
       {!showFavorites && (
-        <>  
+        <>
           <div style={{ 
             display: 'flex', 
             gap: '10px', 
@@ -231,7 +236,7 @@ export default function Home() {
           }}>
             <input 
               type="text" 
-              placeholder="Suche..." 
+              placeholder="Produktname (z.B. Apfel)..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && searchProducts()}
